@@ -279,29 +279,46 @@ async function generatePDF(html, filename) {
   // Chrome executable paths for different environments
   const chromeExecutables = [
     process.env.PUPPETEER_EXECUTABLE_PATH,
+    process.env.GOOGLE_CHROME_BIN,
+    '/usr/bin/google-chrome-stable',
     '/usr/bin/google-chrome',
     '/usr/bin/chromium-browser',
     '/usr/bin/chromium',
-    '/snap/bin/chromium'
+    '/snap/bin/chromium',
+    'google-chrome-stable',
+    'google-chrome',
+    'chromium-browser',
+    'chromium'
   ];
 
   let executablePath = undefined;
+  
+  // Try to find a working Chrome executable
   for (const path of chromeExecutables) {
     if (path) {
       try {
         const fs = require('fs');
-        if (fs.existsSync(path)) {
+        if (path.startsWith('/') && fs.existsSync(path)) {
           executablePath = path;
+          console.log(`Found Chrome at: ${path}`);
+          break;
+        } else if (!path.startsWith('/')) {
+          // For non-absolute paths, let Puppeteer handle it
+          executablePath = path;
+          console.log(`Using Chrome command: ${path}`);
           break;
         }
       } catch (e) {
-        // Continue to next path
+        console.log(`Chrome check failed for ${path}:`, e.message);
+        continue;
       }
     }
   }
 
+  console.log(`Launching browser with executablePath: ${executablePath || 'default'}`);
+
   const browser = await puppeteer.launch({
-    headless: true,
+    headless: "new", // Use new headless mode
     executablePath,
     args: [
       '--no-sandbox',
@@ -315,9 +332,20 @@ async function generatePDF(html, filename) {
       '--disable-features=VizDisplayCompositor',
       '--disable-extensions',
       '--disable-plugins',
-      '--disable-images',
-      '--disable-javascript',
-      '--virtual-time-budget=5000'
+      '--disable-default-apps',
+      '--disable-sync',
+      '--disable-translate',
+      '--hide-scrollbars',
+      '--metrics-recording-only',
+      '--mute-audio',
+      '--no-default-browser-check',
+      '--no-first-run',
+      '--safebrowsing-disable-auto-update',
+      '--disable-background-timer-throttling',
+      '--disable-backgrounding-occluded-windows',
+      '--disable-renderer-backgrounding',
+      '--disable-features=TranslateUI',
+      '--disable-ipc-flooding-protection'
     ]
   });
 

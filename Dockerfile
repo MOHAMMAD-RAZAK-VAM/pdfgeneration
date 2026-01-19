@@ -12,7 +12,7 @@ RUN apt-get update \
 
 # Tell Puppeteer to skip installing Chromium
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
-    PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome
+    PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome-stable
 
 # Create app directory
 WORKDIR /usr/src/app
