@@ -276,8 +276,33 @@ function generateInvoiceHTML(data) {
 
 // Generate PDF from HTML
 async function generatePDF(html, filename) {
+  // Chrome executable paths for different environments
+  const chromeExecutables = [
+    process.env.PUPPETEER_EXECUTABLE_PATH,
+    '/usr/bin/google-chrome',
+    '/usr/bin/chromium-browser',
+    '/usr/bin/chromium',
+    '/snap/bin/chromium'
+  ];
+
+  let executablePath = undefined;
+  for (const path of chromeExecutables) {
+    if (path) {
+      try {
+        const fs = require('fs');
+        if (fs.existsSync(path)) {
+          executablePath = path;
+          break;
+        }
+      } catch (e) {
+        // Continue to next path
+      }
+    }
+  }
+
   const browser = await puppeteer.launch({
     headless: true,
+    executablePath,
     args: [
       '--no-sandbox',
       '--disable-setuid-sandbox',
@@ -285,7 +310,14 @@ async function generatePDF(html, filename) {
       '--disable-accelerated-2d-canvas',
       '--no-first-run',
       '--no-zygote',
-      '--disable-gpu'
+      '--disable-gpu',
+      '--disable-web-security',
+      '--disable-features=VizDisplayCompositor',
+      '--disable-extensions',
+      '--disable-plugins',
+      '--disable-images',
+      '--disable-javascript',
+      '--virtual-time-budget=5000'
     ]
   });
 
