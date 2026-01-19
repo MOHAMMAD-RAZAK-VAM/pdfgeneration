@@ -1,0 +1,38 @@
+{
+  "invoiceNo": "INV-SAMPLE-001",
+  "date": "2026-01-19",
+  "customer": {
+    "name": "Arun Kumar",
+    "email": "arun@gmail.com",
+    "address": "123 Tech Street, Bangalore, Karnataka 560001, India"
+  },
+  "items": [
+    {
+      "name": "UI/UX Design Services",
+      "qty": 1,
+      "price": 15000
+    },
+    {
+      "name": "Backend API Development",
+      "qty": 1,
+      "price": 20000
+    },
+    {
+      "name": "Frontend React Development",
+      "qty": 1,
+      "price": 18000
+    },
+    {
+      "name": "Database Setup & Configuration",
+      "qty": 1,
+      "price": 7000
+    }
+  ],
+  "taxPercent": 18,
+  "company": {
+    "name": "TechSolutions Private Limited",
+    "address": "456 Innovation Hub, Electronic City, Bangalore, Karnataka 560100",
+    "phone": "+91 98765 43210",
+    "email": "billing@techsolutions.in"
+  }
+}
