@@ -1,5 +1,5 @@
 const express = require('express');
-const puppeteer = require('puppeteer');
+const htmlPdf = require('html-pdf-node');
 const fs = require('fs').promises;
 const path = require('path');
 const cors = require('cors');
@@ -274,115 +274,13 @@ function generateInvoiceHTML(data) {
   `;
 }
 
-// Generate PDF from HTML
+// Generate PDF from HTML using html-pdf-node
 async function generatePDF(html, filename) {
-  // Chrome executable paths for different environments
-  const fs = require('fs');
-  const { execSync } = require('child_process');
+  console.log('📄 Starting PDF generation with html-pdf-node...');
   
-  let executablePath = undefined;
-
-  // For Render environment - try to find Chrome in common locations
-  const chromeExecutables = [
-    process.env.PUPPETEER_EXECUTABLE_PATH,
-    process.env.GOOGLE_CHROME_BIN,
-    '/usr/bin/google-chrome-stable',
-    '/usr/bin/google-chrome',
-    '/usr/bin/chromium-browser',
-    '/usr/bin/chromium',
-    '/opt/google/chrome/chrome',
-    '/opt/google/chrome/google-chrome',
-    '/usr/local/bin/google-chrome-stable',
-    '/usr/local/bin/google-chrome',
-    '/snap/bin/chromium'
-  ];
-
-  // Check if we're on Render (common environment variable)
-  const isRender = process.env.RENDER || process.env.RENDER_SERVICE_ID;
-  
-  if (isRender) {
-    console.log('Detected Render environment');
-    
-    // On Render, try to find Chrome without using 'which'
-    for (const path of chromeExecutables) {
-      if (path && path.startsWith('/')) {
-        try {
-          if (fs.existsSync(path)) {
-            executablePath = path;
-            console.log(`Found Chrome at: ${path}`);
-            break;
-          }
-        } catch (e) {
-          continue;
-        }
-      }
-    }
-    
-    // If still not found, let Puppeteer download its own Chrome
-    if (!executablePath) {
-      console.log('Chrome not found in expected locations, using Puppeteer bundled Chrome');
-      executablePath = undefined; // Let Puppeteer use its bundled Chrome
-    }
-  } else {
-    // For local development, try to detect Chrome
-    try {
-      const whichChrome = execSync('which google-chrome-stable || which google-chrome || which chromium-browser || which chromium', { encoding: 'utf8' }).trim();
-      if (whichChrome && fs.existsSync(whichChrome)) {
-        executablePath = whichChrome;
-        console.log(`Found Chrome via 'which': ${whichChrome}`);
-      }
-    } catch (e) {
-      console.log('Could not find Chrome via which command, trying predefined paths');
-      
-      for (const path of chromeExecutables) {
-        if (path && fs.existsSync(path)) {
-          executablePath = path;
-          console.log(`Found Chrome at: ${path}`);
-          break;
-        }
-      }
-    }
-  }
-
-  console.log(`Launching browser with executablePath: ${executablePath || 'default'}`);
-
-  const browser = await puppeteer.launch({
-    headless: "new", // Use new headless mode
-    executablePath,
-    args: [
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      '--disable-dev-shm-usage',
-      '--disable-accelerated-2d-canvas',
-      '--no-first-run',
-      '--no-zygote',
-      '--disable-gpu',
-      '--disable-web-security',
-      '--disable-features=VizDisplayCompositor',
-      '--disable-extensions',
-      '--disable-plugins',
-      '--disable-default-apps',
-      '--disable-sync',
-      '--disable-translate',
-      '--hide-scrollbars',
-      '--metrics-recording-only',
-      '--mute-audio',
-      '--no-default-browser-check',
-      '--no-first-run',
-      '--safebrowsing-disable-auto-update',
-      '--disable-background-timer-throttling',
-      '--disable-backgrounding-occluded-windows',
-      '--disable-renderer-backgrounding',
-      '--disable-features=TranslateUI',
-      '--disable-ipc-flooding-protection'
-    ]
-  });
-
   try {
-    const page = await browser.newPage();
-    await page.setContent(html, { waitUntil: 'networkidle0' });
-    
-    const pdfBuffer = await page.pdf({
+    // Configure html-pdf-node options
+    const options = {
       format: 'A4',
       printBackground: true,
       margin: {
@@ -391,11 +289,20 @@ async function generatePDF(html, filename) {
         bottom: '0.5in',
         left: '0.5in'
       }
-    });
+    };
 
+    // Create the file object for html-pdf-node
+    const file = { content: html };
+
+    // Generate PDF buffer
+    console.log('🔄 Generating PDF...');
+    const pdfBuffer = await htmlPdf.generatePdf(file, options);
+    console.log('✅ PDF generated successfully');
+    
     return pdfBuffer;
-  } finally {
-    await browser.close();
+  } catch (error) {
+    console.error('❌ PDF generation failed:', error);
+    throw error;
   }
 }
 
