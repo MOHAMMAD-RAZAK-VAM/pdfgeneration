@@ -277,6 +277,12 @@ function generateInvoiceHTML(data) {
 // Generate PDF from HTML
 async function generatePDF(html, filename) {
   // Chrome executable paths for different environments
+  const fs = require('fs');
+  const { execSync } = require('child_process');
+  
+  let executablePath = undefined;
+
+  // For Render environment - try to find Chrome in common locations
   const chromeExecutables = [
     process.env.PUPPETEER_EXECUTABLE_PATH,
     process.env.GOOGLE_CHROME_BIN,
@@ -284,33 +290,56 @@ async function generatePDF(html, filename) {
     '/usr/bin/google-chrome',
     '/usr/bin/chromium-browser',
     '/usr/bin/chromium',
-    '/snap/bin/chromium',
-    'google-chrome-stable',
-    'google-chrome',
-    'chromium-browser',
-    'chromium'
+    '/opt/google/chrome/chrome',
+    '/opt/google/chrome/google-chrome',
+    '/usr/local/bin/google-chrome-stable',
+    '/usr/local/bin/google-chrome',
+    '/snap/bin/chromium'
   ];
 
-  let executablePath = undefined;
+  // Check if we're on Render (common environment variable)
+  const isRender = process.env.RENDER || process.env.RENDER_SERVICE_ID;
   
-  // Try to find a working Chrome executable
-  for (const path of chromeExecutables) {
-    if (path) {
-      try {
-        const fs = require('fs');
-        if (path.startsWith('/') && fs.existsSync(path)) {
+  if (isRender) {
+    console.log('Detected Render environment');
+    
+    // On Render, try to find Chrome without using 'which'
+    for (const path of chromeExecutables) {
+      if (path && path.startsWith('/')) {
+        try {
+          if (fs.existsSync(path)) {
+            executablePath = path;
+            console.log(`Found Chrome at: ${path}`);
+            break;
+          }
+        } catch (e) {
+          continue;
+        }
+      }
+    }
+    
+    // If still not found, let Puppeteer download its own Chrome
+    if (!executablePath) {
+      console.log('Chrome not found in expected locations, using Puppeteer bundled Chrome');
+      executablePath = undefined; // Let Puppeteer use its bundled Chrome
+    }
+  } else {
+    // For local development, try to detect Chrome
+    try {
+      const whichChrome = execSync('which google-chrome-stable || which google-chrome || which chromium-browser || which chromium', { encoding: 'utf8' }).trim();
+      if (whichChrome && fs.existsSync(whichChrome)) {
+        executablePath = whichChrome;
+        console.log(`Found Chrome via 'which': ${whichChrome}`);
+      }
+    } catch (e) {
+      console.log('Could not find Chrome via which command, trying predefined paths');
+      
+      for (const path of chromeExecutables) {
+        if (path && fs.existsSync(path)) {
           executablePath = path;
           console.log(`Found Chrome at: ${path}`);
           break;
-        } else if (!path.startsWith('/')) {
-          // For non-absolute paths, let Puppeteer handle it
-          executablePath = path;
-          console.log(`Using Chrome command: ${path}`);
-          break;
         }
-      } catch (e) {
-        console.log(`Chrome check failed for ${path}:`, e.message);
-        continue;
       }
     }
   }
