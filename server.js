@@ -345,7 +345,8 @@ app.get('/health', (req, res) => {
     status: 'OK', 
     timestamp: new Date().toISOString(),
     service: 'Invoice PDF Backend',
-    version: '1.0.0'
+    version: '1.0.1',
+    library: 'html-pdf-node'
   });
 });
 
