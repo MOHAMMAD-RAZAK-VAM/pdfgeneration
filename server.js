@@ -339,6 +339,14 @@ async function sendInvoiceEmail(invoiceData, pdfBuffer) {
 
 // Routes
 
+// Serve static files (for the web interface)
+app.use(express.static('public'));
+
+// Root route - serve the web interface
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
 // Health check
 app.get('/health', (req, res) => {
   res.json({ 
@@ -423,6 +431,113 @@ app.post('/api/send-invoice', async (req, res) => {
   }
 });
 
+// COMPLETE INVOICE PROCESSING - Handles your array format and processes everything
+app.post('/api/process-invoices', async (req, res) => {
+  try {
+    console.log('📦 Processing invoice batch...');
+    let invoices = req.body;
+    
+    // Handle single invoice or array of invoices
+    if (!Array.isArray(invoices)) {
+      invoices = [invoices];
+    }
+    
+    const results = [];
+    
+    for (const invoiceWrapper of invoices) {
+      try {
+        // Extract invoiceData from your format
+        let invoiceData;
+        if (invoiceWrapper.invoiceData) {
+          invoiceData = invoiceWrapper.invoiceData;
+        } else {
+          invoiceData = invoiceWrapper;
+        }
+        
+        // Validate the invoice data
+        const { error, value } = invoiceSchema.validate(invoiceData);
+        if (error) {
+          results.push({
+            invoiceNo: invoiceData?.invoiceNo || 'Unknown',
+            success: false,
+            error: 'Validation failed',
+            details: error.details.map(d => d.message)
+          });
+          continue;
+        }
+        
+        const validatedData = value;
+        console.log(`📄 Processing invoice: ${validatedData.invoiceNo}`);
+        
+        // Generate HTML and PDF
+        const html = generateInvoiceHTML(validatedData);
+        const pdfBuffer = await generatePDF(html, `invoice-${validatedData.invoiceNo}`);
+        
+        // Try to send email (optional - won't fail if SendGrid not configured)
+        let emailSent = false;
+        let emailError = null;
+        
+        if (process.env.SENDGRID_API_KEY) {
+          try {
+            await sendInvoiceEmail(validatedData, pdfBuffer);
+            emailSent = true;
+            console.log(`📧 Email sent for invoice: ${validatedData.invoiceNo}`);
+          } catch (emailErr) {
+            emailError = emailErr.message;
+            console.log(`⚠️ Email failed for ${validatedData.invoiceNo}: ${emailErr.message}`);
+          }
+        } else {
+          emailError = 'SendGrid API key not configured';
+        }
+        
+        results.push({
+          invoiceNo: validatedData.invoiceNo,
+          success: true,
+          customer: validatedData.customer.name,
+          email: validatedData.customer.email,
+          amount: validatedData.grandTotal || 0,
+          emailSent: emailSent,
+          emailError: emailError,
+          pdfGenerated: true,
+          timestamp: new Date().toISOString()
+        });
+        
+      } catch (invoiceError) {
+        console.error(`❌ Failed processing invoice:`, invoiceError);
+        results.push({
+          invoiceNo: invoiceWrapper?.invoiceData?.invoiceNo || invoiceWrapper?.invoiceNo || 'Unknown',
+          success: false,
+          error: invoiceError.message
+        });
+      }
+    }
+    
+    const successCount = results.filter(r => r.success).length;
+    const totalCount = results.length;
+    
+    res.json({
+      success: true,
+      message: `Processed ${successCount}/${totalCount} invoices successfully`,
+      summary: {
+        total: totalCount,
+        successful: successCount,
+        failed: totalCount - successCount,
+        emailsSent: results.filter(r => r.emailSent).length
+      },
+      results: results,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('Batch Processing Error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to process invoices',
+      message: error.message
+    });
+  }
+});
+
 // Get invoice preview (HTML)
 app.post('/api/preview', async (req, res) => {
   try {
@@ -467,6 +582,7 @@ app.use('*', (req, res) => {
       'GET /health',
       'POST /api/generate-pdf',
       'POST /api/send-invoice',
+      'POST /api/process-invoices',
       'POST /api/preview'
     ]
   });
